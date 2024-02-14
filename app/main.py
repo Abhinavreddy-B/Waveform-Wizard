@@ -5,6 +5,20 @@ import os
 import soundfile as sf
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar
+from scipy.signal import spectrogram
+import numpy as np
+
+from dependencies.resample.main import resample
+
+def plot_spectrogram(data, fs):
+    f, t, Sxx = spectrogram(data, nfft=fs, window='hamming', nperseg=160, noverlap=80)
+    plt.pcolormesh(t, f, 10 * np.log10(Sxx))
+    plt.colormap("plasma")
+    plt.ylabel('Frequency [Hz]')
+    plt.xlabel('Time [sec]')
+    plt.colorbar(label='Magnitude [dB]')
+    plt.show()
+
 
 class LeftComponent(QGroupBox):
     def __init__(self):
@@ -24,7 +38,7 @@ class LeftComponent(QGroupBox):
         self.zoom_in_action.triggered.connect(self.zoom_in)
         self.tool_button_zoom_in = QToolButton(self)
         self.tool_button_zoom_in.setDefaultAction(self.zoom_in_action)
-        self.zoom_out_action = QAction('Zoom In')
+        self.zoom_out_action = QAction('Zoom Out')
         self.zoom_out_action.triggered.connect(self.zoom_out)
         self.tool_button_zoom_out = QToolButton(self)
         self.tool_button_zoom_out.setDefaultAction(self.zoom_out_action)
@@ -40,15 +54,17 @@ class LeftComponent(QGroupBox):
 
     def zoom_in(self):
         xlim = self.ax.get_xlim()
-        ylim = self.ax.get_ylim()
-        self.ax.set_xlim(xlim[0] * 0.9, xlim[1] * 0.9)
+        # ylim = self.ax.get_ylim()
+        center = (xlim[0] + xlim[1])/2
+        self.ax.set_xlim(center - (center - xlim[0]) * 0.9, center + (xlim[1] - center) * 0.9)
         # self.ax.set_ylim(ylim[0] * 0.9, ylim[1] * 0.9)
         self.left_canvas.draw()
 
     def zoom_out(self):
         xlim = self.ax.get_xlim()
-        ylim = self.ax.get_ylim()
-        self.ax.set_xlim(xlim[0] * 1.1, xlim[1] * 1.1)
+        # ylim = self.ax.get_ylim()
+        center = (xlim[0] + xlim[1])/2
+        self.ax.set_xlim(center - (center - xlim[0]) * 1.1, center + (xlim[1] - center) * 1.1)
         # self.ax.set_ylim(ylim[0] * 1.1, ylim[1] * 1.1)
         self.left_canvas.draw()
 
@@ -126,7 +142,7 @@ class MyMainWindow(QMainWindow):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self, "Load Single File", "", "All Files (*);;Text Files (*.txt)", options=options)
         if fileName:
-            print(f"Selected file: {fileName}")
+            # print(f"Selected file: {fileName}")
             self._log_action(f"Selected file: {fileName}")
             self.file_path = fileName
             self.file_base_name = os.path.basename(fileName)
@@ -135,6 +151,7 @@ class MyMainWindow(QMainWindow):
             data, samplerate = sf.read(self.file_path)
             print(data, samplerate)
 
+            plot_spectrogram(data, samplerate)
             self.left_component.update_plot(data)
 
     def refresh_left_area(self):
