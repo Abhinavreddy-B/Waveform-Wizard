@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QAction, QFileDialog, QActionGroup, QTextEdit, QWidget, QVBoxLayout, QLabel, QHBoxLayout, QGroupBox, QSplitter, QToolButton
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QAction, QFileDialog, QActionGroup, QTextEdit, QWidget, QVBoxLayout, QLabel, QHBoxLayout, QGroupBox, QSplitter, QToolButton, QRadioButton
 from PyQt5.QtCore import Qt
 import os
 import soundfile as sf
@@ -13,7 +13,6 @@ from dependencies.resample.main import resample
 def plot_spectrogram(data, fs):
     f, t, Sxx = spectrogram(data, nfft=fs, window='hamming', nperseg=160, noverlap=80)
     plt.pcolormesh(t, f, 10 * np.log10(Sxx))
-    plt.colormap("plasma")
     plt.ylabel('Frequency [Hz]')
     plt.xlabel('Time [sec]')
     plt.colorbar(label='Magnitude [dB]')
@@ -22,35 +21,70 @@ def plot_spectrogram(data, fs):
 
 class LeftComponent(QGroupBox):
     def __init__(self):
-        super().__init__("Left Box")
+        super().__init__("Select a File to continue")
         self.initUI()
+
+        self.data = None
+        self.fs = None
 
     def initUI(self):
         self.left_layout = QVBoxLayout()
+        self.prepareRadioButtons()
 
         self.left_plot = plt.figure()
         self.ax = self.left_plot.add_subplot(111)
         self.left_canvas = FigureCanvas(self.left_plot)
-        self.left_toolbar = NavigationToolbar(self.left_canvas, self)
+        # self.left_toolbar = NavigationToolbar(self.left_canvas, self)
 
-        self.left_layout.addWidget(self.left_toolbar)
-        self.zoom_in_action = QAction('Zoom In')
-        self.zoom_in_action.triggered.connect(self.zoom_in)
-        self.tool_button_zoom_in = QToolButton(self)
-        self.tool_button_zoom_in.setDefaultAction(self.zoom_in_action)
-        self.zoom_out_action = QAction('Zoom Out')
-        self.zoom_out_action.triggered.connect(self.zoom_out)
-        self.tool_button_zoom_out = QToolButton(self)
-        self.tool_button_zoom_out.setDefaultAction(self.zoom_out_action)
-        self.left_layout.addWidget(self.tool_button_zoom_in)
-        self.left_layout.addWidget(self.tool_button_zoom_out)
+        # self.left_layout.addWidget(self.left_toolbar)
+        # self.zoom_in_action = QAction('Zoom In')
+        # self.zoom_in_action.triggered.connect(self.zoom_in)
+        # self.tool_button_zoom_in = QToolButton(self)
+        # self.tool_button_zoom_in.setDefaultAction(self.zoom_in_action)
+        # self.zoom_out_action = QAction('Zoom Out')
+        # self.zoom_out_action.triggered.connect(self.zoom_out)
+        # self.tool_button_zoom_out = QToolButton(self)
+        # self.tool_button_zoom_out.setDefaultAction(self.zoom_out_action)
+        # self.left_layout.addWidget(self.tool_button_zoom_in)
+        # self.left_layout.addWidget(self.tool_button_zoom_out)
         self.left_layout.addWidget(self.left_canvas)
         self.setLayout(self.left_layout)
 
-    def update_plot(self, data):
+    def prepareRadioButtons(self):
+        self.radioButtonLayout = QHBoxLayout()
+        self.radioButton1 = QRadioButton('WafeForm')
+        self.radioButton1.clicked.connect(self.update_plot)
+        self.radioButton1.setDisabled(True)
+        self.radioButton2 = QRadioButton('Spectogram')
+        self.radioButton2.clicked.connect(self.update_spectogram_plot)
+        self.radioButton2.setDisabled(True)
+
+        self.radioButtonLayout.addWidget(self.radioButton1)
+        self.radioButtonLayout.addWidget(self.radioButton2)
+
+        self.left_layout.addLayout(self.radioButtonLayout)
+
+    def update_plot(self):
         self.ax.clear()
-        self.ax.plot(data)
+        self.ax.plot(self.data)
         self.left_canvas.draw()
+
+    def update_spectogram_plot(self):
+        self.ax.clear()
+        f, t, Sxx = spectrogram(self.data, nfft=self.fs, window='hamming', nperseg=160, noverlap=80)
+        
+        self.ax.pcolormesh(t, f, 10 * np.log10(Sxx))
+        self.ax.set_ylabel('Frequency [Hz]')
+        self.ax.set_xlabel('Time [sec]')
+
+        self.left_canvas.draw()
+
+    def set_data(self, data, fs):
+        self.data = data
+        self.fs = fs
+
+        self.radioButton1.setDisabled(False)
+        self.radioButton2.setDisabled(False)
 
     def zoom_in(self):
         xlim = self.ax.get_xlim()
@@ -87,9 +121,9 @@ class MyMainWindow(QMainWindow):
         self.splitter = QSplitter(self)
 
         self.left_component = LeftComponent()
-        self.right_component = LeftComponent()
+        # self.right_component = LeftComponent()
         self.splitter.addWidget(self.left_component)
-        self.splitter.addWidget(self.right_component)
+        # self.splitter.addWidget(self.right_component)
 
         main_layout.addWidget(self.splitter)
 
@@ -151,8 +185,8 @@ class MyMainWindow(QMainWindow):
             data, samplerate = sf.read(self.file_path)
             print(data, samplerate)
 
-            plot_spectrogram(data, samplerate)
-            self.left_component.update_plot(data)
+            # plot_spectrogram(data, samplerate)
+            self.left_component.set_data(data, samplerate)
 
     def refresh_left_area(self):
         self.left_component.setTitle(self.file_base_name)
