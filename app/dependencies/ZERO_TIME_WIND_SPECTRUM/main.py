@@ -145,7 +145,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
-lib = ctypes.CDLL('./lib/TIME_entrypoint_Wrapper/libTIME.so')  
+lib = ctypes.CDLL('./dependencies/ZERO_TIME_WIND_SPECTRUM/lib/TIME_entrypoint_Wrapper/libTIME.so')  
 
 lib.WIND.argtypes = [
     ctypes.POINTER(ctypes.c_double),   # data
@@ -244,9 +244,12 @@ def plot_ztws(data, fs):
 # y, sr = librosa.load(audio_file_path, sr=None)
 # data = y.astype(float)
 # fs = float(sr)
-data = np.array([-1.0891, 0.0326, 0.5525, 1.1006, 1.5442, 0.0859, -1.4916,-0.7423, -1.0616, 2.3505, -0.6156, 0.7481, -0.1924, 0.8886, -0.7648, -1.4023, -1.4224, 0.4882, -0.1774, -0.1961])
-fs = 16000
-plot_ztws(data, fs)
+    
+if __name__ == '__main__':
+    data = np.array([-1.0891, 0.0326, 0.5525, 1.1006, 1.5442, 0.0859, -1.4916,-0.7423, -1.0616, 2.3505, -0.6156, 0.7481, -0.1924, 0.8886, -0.7648, -1.4023, -1.4224, 0.4882, -0.1774, -0.1961])
+    fs = 16000
+    plot_ztws(data, fs)
+    
 # ZTW_SPEC, ZTW_HNGD_SPEC = wind(audio_file_path)
 
 # print("ZTW_SPEC:")

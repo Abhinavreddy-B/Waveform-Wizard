@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QAction, QFileDialog, QActionGroup, QTextEdit, QWidget, QVBoxLayout, QLabel, QHBoxLayout, QGroupBox, QSplitter, QToolButton, QRadioButton
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 import os
 import soundfile as sf
 import matplotlib.pyplot as plt
@@ -9,6 +9,8 @@ from scipy.signal import spectrogram
 import numpy as np
 
 from dependencies.resample.main import resample
+from dependencies.ZERO_TIME_WIND_SPECTRUM.main import wind as zero_time_wind_spectrum
+from datetime import datetime
 
 def plot_spectrogram(data, fs):
     f, t, Sxx = spectrogram(data, nfft=fs, window='hamming', nperseg=160, noverlap=80)
@@ -19,7 +21,7 @@ def plot_spectrogram(data, fs):
     plt.show()
 
 
-class LeftComponent(QGroupBox):
+class AudioComponent(QGroupBox):
     def __init__(self):
         super().__init__("Select a File to continue")
         self.initUI()
@@ -58,19 +60,36 @@ class LeftComponent(QGroupBox):
         self.radioButton2 = QRadioButton('Spectogram')
         self.radioButton2.clicked.connect(self.update_spectogram_plot)
         self.radioButton2.setDisabled(True)
+        self.radioButton3 = QRadioButton('Zero Time Wind Spectrum')
+        self.radioButton3.clicked.connect(self.update_zero_time_wind_spectrum_plot)
+        self.radioButton3.setDisabled(True)
 
         self.radioButtonLayout.addWidget(self.radioButton1)
         self.radioButtonLayout.addWidget(self.radioButton2)
+        self.radioButtonLayout.addWidget(self.radioButton3)
 
         self.left_layout.addLayout(self.radioButtonLayout)
 
+    def disable_radio_buttons(self):
+        self.radioButton1.setDisabled(True)
+        self.radioButton2.setDisabled(True)
+        self.radioButton3.setDisabled(True)
+    
+    def enable_radio_buttons(self):
+        self.radioButton1.setDisabled(False)
+        self.radioButton2.setDisabled(False)
+        self.radioButton3.setDisabled(False)
+
     def update_plot(self):
-        self.ax.clear()
+        self.disable_radio_buttons()
+        self.set_loading_screen_in_plot()
         self.ax.plot(self.data)
         self.left_canvas.draw()
+        self.enable_radio_buttons()
 
     def update_spectogram_plot(self):
-        self.ax.clear()
+        self.disable_radio_buttons()
+        self.set_loading_screen_in_plot()
         f, t, Sxx = spectrogram(self.data, nfft=self.fs, window='hamming', nperseg=160, noverlap=80)
         
         self.ax.pcolormesh(t, f, 10 * np.log10(Sxx))
@@ -78,13 +97,52 @@ class LeftComponent(QGroupBox):
         self.ax.set_xlabel('Time [sec]')
 
         self.left_canvas.draw()
+        self.enable_radio_buttons()
+
+    def update_zero_time_wind_spectrum_plot(self):
+        self.disable_radio_buttons()
+
+        self.set_loading_screen_in_plot()
+        
+        result_SPEC, result_HNGD_SPEC = zero_time_wind_spectrum(self.resampled_data, self.resampled_fs)
+    
+        time_bins = result_HNGD_SPEC.shape[1]
+        tz = np.arange(time_bins) * len(self.resampled_data) / (time_bins - 1) / self.resampled_fs
+        freq_bins = result_HNGD_SPEC.shape[0]
+        fsn = self.resampled_fs / 2
+        fz = np.arange(freq_bins) * fsn / (freq_bins - 1)
+        
+        print('Starting', datetime.now())
+        T, F = np.meshgrid(tz, fz)
+        print('Ending', datetime.now())
+        
+        self.ax.pcolormesh(T, F, abs(result_HNGD_SPEC), shading='auto')
+        # self.ax.colorbar(label='Magnitude')
+        self.ax.set_xlabel('Time')
+        self.ax.set_ylabel('Frequency')
+        self.left_canvas.draw()
+
+        self.enable_radio_buttons()
 
     def set_data(self, data, fs):
         self.data = data
         self.fs = fs
 
-        self.radioButton1.setDisabled(False)
-        self.radioButton2.setDisabled(False)
+        self.resampled_data = resample(self.data, 8000, self.fs)
+        self.resampled_fs = 8000
+
+        self.enable_radio_buttons()
+
+    def set_loading_screen_in_plot(self):
+        print('Inside clear function')
+        self.ax.clear()
+        self.left_canvas.draw()
+
+        self.ax.set_axis_off()
+        self.ax.text(0.5, 0.5, 'Loading....', horizontalalignment='center', verticalalignment='center', fontsize=12)
+        self.left_canvas.draw()
+
+        self.ax.clear()
 
     def zoom_in(self):
         xlim = self.ax.get_xlim()
@@ -109,6 +167,8 @@ class MyMainWindow(QMainWindow):
         self.logs = []
         self.file_path = None
         self.file_base_name = None
+        self.file_path_2 = None
+        self.file_base_name_2 = None
         self.initUI()
 
     def initUI(self):
@@ -120,10 +180,10 @@ class MyMainWindow(QMainWindow):
 
         self.splitter = QSplitter(self)
 
-        self.left_component = LeftComponent()
-        # self.right_component = LeftComponent()
+        self.left_component = AudioComponent()
+        self.right_component = AudioComponent()
         self.splitter.addWidget(self.left_component)
-        # self.splitter.addWidget(self.right_component)
+        self.splitter.addWidget(self.right_component)
 
         main_layout.addWidget(self.splitter)
 
@@ -176,25 +236,41 @@ class MyMainWindow(QMainWindow):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self, "Load Single File", "", "All Files (*);;Text Files (*.txt)", options=options)
         if fileName:
-            # print(f"Selected file: {fileName}")
-            self._log_action(f"Selected file: {fileName}")
-            self.file_path = fileName
-            self.file_base_name = os.path.basename(fileName)
-            self.refresh_left_area()
+            if self.file_path == None:
+                # print(f"Selected file: {fileName}")
+                self._log_action(f"Selected file: {fileName}")
+                self.file_path = fileName
+                self.file_base_name = os.path.basename(fileName)
+                self.refresh_left_area()
 
-            data, samplerate = sf.read(self.file_path)
-            print(data, samplerate)
+                data, samplerate = sf.read(self.file_path)
+                print(data, samplerate)
 
-            # plot_spectrogram(data, samplerate)
-            self.left_component.set_data(data, samplerate)
+                # plot_spectrogram(data, samplerate)
+                self.left_component.set_data(data, samplerate)
+            else:
+                self._log_action(f"Selected file: {fileName}")
+                self.file_path_2 = fileName
+                self.file_base_name_2 = os.path.basename(fileName)
+                self.refresh_right_area()
+
+                data, samplerate = sf.read(self.file_path_2)
+                
+                self.right_component.set_data(data, samplerate)
 
     def refresh_left_area(self):
         self.left_component.setTitle(self.file_base_name)
+
+    def refresh_right_area(self):
+        self.right_component .setTitle(self.file_base_name_2)
 
     def _log_action(self, text):
         print(text)
         self.logs.append(text)
 
+# data = np.array([-1.0891, 0.0326, 0.5525, 1.1006, 1.5442, 0.0859, -1.4916,-0.7423, -1.0616, 2.3505, -0.6156, 0.7481, -0.1924, 0.8886, -0.7648, -1.4023, -1.4224, 0.4882, -0.1774, -0.1961])
+# fs = 16000
+        
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     mainWindow = MyMainWindow()
