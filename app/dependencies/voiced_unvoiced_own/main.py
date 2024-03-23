@@ -93,5 +93,6 @@ def test_voiced_unvoiced_own():
     plt.show()
 
 
-# Call the test function
-test_voiced_unvoiced_own()
+if __name__ == '__main__':
+    # Call the test function
+    test_voiced_unvoiced_own()

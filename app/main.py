@@ -10,7 +10,9 @@ import numpy as np
 
 from dependencies.resample.main import resample
 from dependencies.ZERO_TIME_WIND_SPECTRUM.main import wind as zero_time_wind_spectrum
+from dependencies.SINGLE_FREQ_FILTER_FS.main import SINGLE_FREQ_FILTER_FS as single_freq_filter_fs
 from datetime import datetime
+from time import sleep
 
 def plot_spectrogram(data, fs):
     f, t, Sxx = spectrogram(data, nfft=fs, window='hamming', nperseg=160, noverlap=80)
@@ -30,15 +32,15 @@ class AudioComponent(QGroupBox):
         self.fs = None
 
     def initUI(self):
-        self.left_layout = QVBoxLayout()
+        self.layout_area = QVBoxLayout()
         self.prepareRadioButtons()
 
-        self.left_plot = plt.figure()
-        self.ax = self.left_plot.add_subplot(111)
-        self.left_canvas = FigureCanvas(self.left_plot)
+        self.plot = plt.figure()
+        self.ax = self.plot.add_subplot(111)
+        self.left_canvas = FigureCanvas(self.plot)
         # self.left_toolbar = NavigationToolbar(self.left_canvas, self)
 
-        # self.left_layout.addWidget(self.left_toolbar)
+        # self.layout_area.addWidget(self.left_toolbar)
         # self.zoom_in_action = QAction('Zoom In')
         # self.zoom_in_action.triggered.connect(self.zoom_in)
         # self.tool_button_zoom_in = QToolButton(self)
@@ -47,10 +49,10 @@ class AudioComponent(QGroupBox):
         # self.zoom_out_action.triggered.connect(self.zoom_out)
         # self.tool_button_zoom_out = QToolButton(self)
         # self.tool_button_zoom_out.setDefaultAction(self.zoom_out_action)
-        # self.left_layout.addWidget(self.tool_button_zoom_in)
-        # self.left_layout.addWidget(self.tool_button_zoom_out)
-        self.left_layout.addWidget(self.left_canvas)
-        self.setLayout(self.left_layout)
+        # self.layout_area.addWidget(self.tool_button_zoom_in)
+        # self.layout_area.addWidget(self.tool_button_zoom_out)
+        self.layout_area.addWidget(self.left_canvas)
+        self.setLayout(self.layout_area)
 
     def prepareRadioButtons(self):
         self.radioButtonLayout = QHBoxLayout()
@@ -63,22 +65,28 @@ class AudioComponent(QGroupBox):
         self.radioButton3 = QRadioButton('Zero Time Wind Spectrum')
         self.radioButton3.clicked.connect(self.update_zero_time_wind_spectrum_plot)
         self.radioButton3.setDisabled(True)
+        self.radioButton4 = QRadioButton('sff')
+        self.radioButton4.clicked.connect(self.update_single_freq_filter_fs)
+        self.radioButton4.setDisabled(True)
 
         self.radioButtonLayout.addWidget(self.radioButton1)
         self.radioButtonLayout.addWidget(self.radioButton2)
         self.radioButtonLayout.addWidget(self.radioButton3)
+        self.radioButtonLayout.addWidget(self.radioButton4)
 
-        self.left_layout.addLayout(self.radioButtonLayout)
+        self.layout_area.addLayout(self.radioButtonLayout)
 
     def disable_radio_buttons(self):
         self.radioButton1.setDisabled(True)
         self.radioButton2.setDisabled(True)
         self.radioButton3.setDisabled(True)
+        self.radioButton4.setDisabled(True)
     
     def enable_radio_buttons(self):
         self.radioButton1.setDisabled(False)
         self.radioButton2.setDisabled(False)
         self.radioButton3.setDisabled(False)
+        self.radioButton4.setDisabled(False)
 
     def update_plot(self):
         self.disable_radio_buttons()
@@ -124,7 +132,40 @@ class AudioComponent(QGroupBox):
 
         self.enable_radio_buttons()
 
+    def update_single_freq_filter_fs(self):
+
+        self.disable_radio_buttons()
+
+        self.set_loading_screen_in_plot()
+
+        # sleep(10)
+        env, _ = single_freq_filter_fs(self.resampled_data, self.resampled_fs, 20, 0, self.resampled_fs/2, 0.98)
+        # env, _ = single_freq_filter_fs(self.resampled_data, self.resampled_fs)
+        env = env.T
+
+        freq_bins_s, time_bins_s = env.shape
+
+        fsn = self.resampled_fs / 2
+        fs_s = np.arange(1, freq_bins_s + 1) * fsn / freq_bins_s    
+
+        ts_s = np.arange(1, time_bins_s + 1) * len(self.resampled_data) / time_bins_s
+        ts_s = ts_s / self.resampled_fs
+
+        T_s, F_s = np.meshgrid(ts_s, fs_s)
+
+        self.ax.pcolormesh(T_s, F_s, np.abs(env), shading='auto')
+        self.ax.set_xlabel('Time')
+        self.ax.set_ylabel('Frequency')
+
+        self.left_canvas.draw()
+        sleep(10)
+
+        self.enable_radio_buttons()
+
+        print("Exiting parent function")
+
     def set_data(self, data, fs):
+        print(data.shape)
         self.data = data
         self.fs = fs
 
@@ -143,6 +184,7 @@ class AudioComponent(QGroupBox):
         self.left_canvas.draw()
 
         self.ax.clear()
+        print('Exiting clear function')
 
     def zoom_in(self):
         xlim = self.ax.get_xlim()
