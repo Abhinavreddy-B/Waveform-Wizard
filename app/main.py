@@ -22,6 +22,17 @@ def plot_spectrogram(data, fs):
     plt.colorbar(label='Magnitude [dB]')
     plt.show()
 
+def process_audio(audio):
+    if audio.ndim == 1:
+        # Type 1 audio (shape: (n,))
+        return audio
+    elif audio.ndim == 2 and audio.shape[1] == 2:
+        # Type 2 audio (shape: (n, 2))
+        # Take only the first channel
+        return audio[:, 0]
+    else:
+        # Invalid audio format
+        raise ValueError("Invalid audio format")
 
 class AudioComponent(QGroupBox):
     def __init__(self):
@@ -33,32 +44,56 @@ class AudioComponent(QGroupBox):
 
     def initUI(self):
         self.layout_area = QVBoxLayout()
+
+        # First graph for regular waveform
+        self.plot_waveform = plt.figure()
+        self.ax_waveform = self.plot_waveform.add_subplot(111)
+        self.canvas_waveform = FigureCanvas(self.plot_waveform)
+
+        self.action_button_layout_waveform = QHBoxLayout()
+        self.zoom_in_action = QAction('\U0001F50D +')
+        self.zoom_in_action.triggered.connect(self.zoom_in)
+        self.tool_button_zoom_in = QToolButton(self)
+        self.tool_button_zoom_in.setDefaultAction(self.zoom_in_action)
+        self.zoom_out_action = QAction('\U0001F50D -')
+        self.zoom_out_action.triggered.connect(self.zoom_out)
+        self.tool_button_zoom_out = QToolButton(self)
+        self.tool_button_zoom_out.setDefaultAction(self.zoom_out_action)
+        self.move_right_action = QAction('\u2192')
+        self.move_right_action.triggered.connect(self.move_right)
+        self.tool_button_move_right = QToolButton(self)
+        self.tool_button_move_right.setDefaultAction(self.move_right_action)
+        self.move_left_action = QAction('\u2190')
+        self.move_left_action.triggered.connect(self.move_left)
+        self.tool_button_move_left = QToolButton(self)
+        self.tool_button_move_left.setDefaultAction(self.move_left_action)
+        self.action_button_layout_waveform.addWidget(self.tool_button_move_left)
+        self.action_button_layout_waveform.addWidget(self.tool_button_zoom_in)
+        self.action_button_layout_waveform.addWidget(self.tool_button_zoom_out)
+        self.action_button_layout_waveform.addWidget(self.tool_button_move_right)
+        self.action_button_layout_waveform.addStretch()
+        
+        self.layout_area.addLayout(self.action_button_layout_waveform)
+        self.layout_area.addWidget(self.canvas_waveform)
+
+        # Second graph for other types of plots
+        self.plot_other = plt.figure()
+        self.ax_other = self.plot_other.add_subplot(111)
+        self.canvas_other = FigureCanvas(self.plot_other)
+        self.other_toolbar = NavigationToolbar(self.canvas_other, self)
+        self.layout_area.addWidget(self.other_toolbar)
+        self.layout_area.addWidget(self.canvas_other)
+
+
         self.prepareRadioButtons()
 
-        self.plot = plt.figure()
-        self.ax = self.plot.add_subplot(111)
-        self.left_canvas = FigureCanvas(self.plot)
-        # self.left_toolbar = NavigationToolbar(self.left_canvas, self)
-
-        # self.layout_area.addWidget(self.left_toolbar)
-        # self.zoom_in_action = QAction('Zoom In')
-        # self.zoom_in_action.triggered.connect(self.zoom_in)
-        # self.tool_button_zoom_in = QToolButton(self)
-        # self.tool_button_zoom_in.setDefaultAction(self.zoom_in_action)
-        # self.zoom_out_action = QAction('Zoom Out')
-        # self.zoom_out_action.triggered.connect(self.zoom_out)
-        # self.tool_button_zoom_out = QToolButton(self)
-        # self.tool_button_zoom_out.setDefaultAction(self.zoom_out_action)
-        # self.layout_area.addWidget(self.tool_button_zoom_in)
-        # self.layout_area.addWidget(self.tool_button_zoom_out)
-        self.layout_area.addWidget(self.left_canvas)
         self.setLayout(self.layout_area)
 
     def prepareRadioButtons(self):
         self.radioButtonLayout = QHBoxLayout()
-        self.radioButton1 = QRadioButton('WafeForm')
-        self.radioButton1.clicked.connect(self.update_plot)
-        self.radioButton1.setDisabled(True)
+        # self.radioButton1 = QRadioButton('WafeForm')
+        # self.radioButton1.clicked.connect(self.update_plot)
+        # self.radioButton1.setDisabled(True)
         self.radioButton2 = QRadioButton('Spectogram')
         self.radioButton2.clicked.connect(self.update_spectogram_plot)
         self.radioButton2.setDisabled(True)
@@ -69,7 +104,7 @@ class AudioComponent(QGroupBox):
         self.radioButton4.clicked.connect(self.update_single_freq_filter_fs)
         self.radioButton4.setDisabled(True)
 
-        self.radioButtonLayout.addWidget(self.radioButton1)
+        # self.radioButtonLayout.addWidget(self.radioButton1)
         self.radioButtonLayout.addWidget(self.radioButton2)
         self.radioButtonLayout.addWidget(self.radioButton3)
         self.radioButtonLayout.addWidget(self.radioButton4)
@@ -77,22 +112,23 @@ class AudioComponent(QGroupBox):
         self.layout_area.addLayout(self.radioButtonLayout)
 
     def disable_radio_buttons(self):
-        self.radioButton1.setDisabled(True)
+        # self.radioButton1.setDisabled(True)
         self.radioButton2.setDisabled(True)
         self.radioButton3.setDisabled(True)
         self.radioButton4.setDisabled(True)
     
     def enable_radio_buttons(self):
-        self.radioButton1.setDisabled(False)
+        # self.radioButton1.setDisabled(False)
         self.radioButton2.setDisabled(False)
         self.radioButton3.setDisabled(False)
         self.radioButton4.setDisabled(False)
 
     def update_plot(self):
         self.disable_radio_buttons()
-        self.set_loading_screen_in_plot()
-        self.ax.plot(self.data)
-        self.left_canvas.draw()
+        # self.set_loading_screen_in_plot()
+        self.ax_waveform.clear()
+        self.ax_waveform.plot(self.data)
+        self.canvas_waveform.draw()
         self.enable_radio_buttons()
 
     def update_spectogram_plot(self):
@@ -100,11 +136,11 @@ class AudioComponent(QGroupBox):
         self.set_loading_screen_in_plot()
         f, t, Sxx = spectrogram(self.data, nfft=self.fs, window='hamming', nperseg=160, noverlap=80)
         
-        self.ax.pcolormesh(t, f, 10 * np.log10(Sxx))
-        self.ax.set_ylabel('Frequency [Hz]')
-        self.ax.set_xlabel('Time [sec]')
+        self.ax_other.pcolormesh(t, f, 10 * np.log10(Sxx))
+        self.ax_other.set_ylabel('Frequency [Hz]')
+        self.ax_other.set_xlabel('Time [sec]')
 
-        self.left_canvas.draw()
+        self.canvas_other.draw()
         self.enable_radio_buttons()
 
     def update_zero_time_wind_spectrum_plot(self):
@@ -124,11 +160,11 @@ class AudioComponent(QGroupBox):
         T, F = np.meshgrid(tz, fz)
         print('Ending', datetime.now())
         
-        self.ax.pcolormesh(T, F, abs(result_HNGD_SPEC), shading='auto')
+        self.ax_other.pcolormesh(T, F, abs(result_HNGD_SPEC), shading='auto')
         # self.ax.colorbar(label='Magnitude')
-        self.ax.set_xlabel('Time')
-        self.ax.set_ylabel('Frequency')
-        self.left_canvas.draw()
+        self.ax_other.set_xlabel('Time')
+        self.ax_other.set_ylabel('Frequency')
+        self.canvas_other.draw()
 
         self.enable_radio_buttons()
 
@@ -153,11 +189,11 @@ class AudioComponent(QGroupBox):
 
         T_s, F_s = np.meshgrid(ts_s, fs_s)
 
-        self.ax.pcolormesh(T_s, F_s, np.abs(env), shading='auto')
-        self.ax.set_xlabel('Time')
-        self.ax.set_ylabel('Frequency')
+        self.ax_other.pcolormesh(T_s, F_s, np.abs(env), shading='auto')
+        self.ax_other.set_xlabel('Time')
+        self.ax_other.set_ylabel('Frequency')
 
-        self.left_canvas.draw()
+        self.canvas_other.draw()
         sleep(10)
 
         self.enable_radio_buttons()
@@ -172,35 +208,54 @@ class AudioComponent(QGroupBox):
         self.resampled_data = resample(self.data, 8000, self.fs)
         self.resampled_fs = 8000
 
+        self.update_plot()
         self.enable_radio_buttons()
 
     def set_loading_screen_in_plot(self):
         print('Inside clear function')
-        self.ax.clear()
-        self.left_canvas.draw()
+        self.ax_other.clear()
+        self.canvas_other.draw()
 
-        self.ax.set_axis_off()
-        self.ax.text(0.5, 0.5, 'Loading....', horizontalalignment='center', verticalalignment='center', fontsize=12)
-        self.left_canvas.draw()
+        self.ax_other.set_axis_off()
+        self.ax_other.text(0.5, 0.5, 'Loading....', horizontalalignment='center', verticalalignment='center', fontsize=12)
+        self.canvas_other.draw()
 
-        self.ax.clear()
+        self.ax_other.clear()
         print('Exiting clear function')
 
     def zoom_in(self):
-        xlim = self.ax.get_xlim()
+        xlim = self.ax_waveform.get_xlim()
         # ylim = self.ax.get_ylim()
         center = (xlim[0] + xlim[1])/2
-        self.ax.set_xlim(center - (center - xlim[0]) * 0.9, center + (xlim[1] - center) * 0.9)
+        self.ax_waveform.set_xlim(center - (center - xlim[0]) * 0.9, center + (xlim[1] - center) * 0.9)
         # self.ax.set_ylim(ylim[0] * 0.9, ylim[1] * 0.9)
-        self.left_canvas.draw()
+        self.canvas_waveform.draw()
 
     def zoom_out(self):
-        xlim = self.ax.get_xlim()
+        xlim = self.ax_waveform.get_xlim()
         # ylim = self.ax.get_ylim()
         center = (xlim[0] + xlim[1])/2
-        self.ax.set_xlim(center - (center - xlim[0]) * 1.1, center + (xlim[1] - center) * 1.1)
+        self.ax_waveform.set_xlim(center - (center - xlim[0]) * 1.1, center + (xlim[1] - center) * 1.1)
         # self.ax.set_ylim(ylim[0] * 1.1, ylim[1] * 1.1)
-        self.left_canvas.draw()
+        self.canvas_waveform.draw()
+
+    def move_right(self):
+        xlim = self.ax_waveform.get_xlim()
+        # ylim = self.ax.get_ylim()
+        width = (xlim[1] - xlim[0])
+        shift = width * 0.1
+        self.ax_waveform.set_xlim(xlim[0]+shift, xlim[1]+shift)
+        # self.ax.set_ylim(ylim[0] * 0.9, ylim[1] * 0.9)
+        self.canvas_waveform.draw()
+    
+    def move_left(self):
+        xlim = self.ax_waveform.get_xlim()
+        # ylim = self.ax.get_ylim()
+        width = (xlim[1] - xlim[0])
+        shift = width * 0.1
+        self.ax_waveform.set_xlim(xlim[0]-shift, xlim[1]-shift)
+        # self.ax.set_ylim(ylim[0] * 0.9, ylim[1] * 0.9)
+        self.canvas_waveform.draw()
 
 
 class MyMainWindow(QMainWindow):
@@ -225,14 +280,19 @@ class MyMainWindow(QMainWindow):
         self.left_component = AudioComponent()
         self.right_component = AudioComponent()
         self.splitter.addWidget(self.left_component)
-        self.splitter.addWidget(self.right_component)
+
+        ## Code change: self.right_component is only added when the user want to load new file. 
+        ## otherwise it wont even be rendered
+        ## check loadFile for more info.
+        # self.splitter.addWidget(self.right_component)
 
         main_layout.addWidget(self.splitter)
 
         self.setCentralWidget(central_widget)
 
         self.setGeometry(100, 100, 800, 600)
-        self.setWindowTitle('Application')
+        self.setWindowTitle('Wavvy')
+        self.showMaximized()  # Start the application in full-screen mode
 
     def createFileMenu(self):
         file_menu = self.menuBar().addMenu('File')
@@ -242,7 +302,7 @@ class MyMainWindow(QMainWindow):
         file_menu.addAction(load_action)
 
         compare_action = QAction('Compare with File', self)
-        # compare_action.triggered.connect(self.compareFiles)
+        compare_action.triggered.connect(self.compareFiles)
         file_menu.addAction(compare_action)
 
     def createOrientationMenu(self):
@@ -270,9 +330,15 @@ class MyMainWindow(QMainWindow):
     def createAlignmentAction(self, text, log_text):
         alignment_action = QAction(text, self)
         alignment_action.setCheckable(True)
-        alignment_action.triggered.connect(lambda: self._log_action(log_text))
+        alignment_action.triggered.connect(lambda: self.change_orientation(text))
         return alignment_action
 
+    def change_orientation(self, text):
+        if(text == 'Vertical'):
+            self.splitter.setOrientation(Qt.Vertical)
+        else:
+            self.splitter.setOrientation(Qt.Horizontal)
+        print('inside, ', text)
 
     def loadFile(self):
         options = QFileDialog.Options()
@@ -286,25 +352,34 @@ class MyMainWindow(QMainWindow):
                 self.refresh_left_area()
 
                 data, samplerate = sf.read(self.file_path)
-                print(data, samplerate)
+                data = process_audio(data)
+                # print(data, samplerate)
 
                 # plot_spectrogram(data, samplerate)
                 self.left_component.set_data(data, samplerate)
-            else:
+
+    def compareFiles(self):
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getOpenFileName(self, "Load Single File", "", "All Files (*);;Text Files (*.txt)", options=options)
+        
+        if fileName:
+            if self.file_path_2 == None:
                 self._log_action(f"Selected file: {fileName}")
                 self.file_path_2 = fileName
                 self.file_base_name_2 = os.path.basename(fileName)
                 self.refresh_right_area()
 
                 data, samplerate = sf.read(self.file_path_2)
+                data = process_audio(data)
                 
                 self.right_component.set_data(data, samplerate)
+                self.splitter.addWidget(self.right_component)
 
     def refresh_left_area(self):
         self.left_component.setTitle(self.file_base_name)
 
     def refresh_right_area(self):
-        self.right_component .setTitle(self.file_base_name_2)
+        self.right_component.setTitle(self.file_base_name_2)
 
     def _log_action(self, text):
         print(text)
