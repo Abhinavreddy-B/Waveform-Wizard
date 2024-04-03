@@ -1,18 +1,28 @@
-import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QAction, QFileDialog, QActionGroup, QTextEdit, QWidget, QVBoxLayout, QLabel, QHBoxLayout, QGroupBox, QSplitter, QToolButton, QRadioButton
-from PyQt5.QtCore import Qt, QTimer
 import os
-import soundfile as sf
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar
-from scipy.signal import spectrogram
-import numpy as np
-
-from dependencies.resample.main import resample
-from dependencies.ZERO_TIME_WIND_SPECTRUM.main import wind as zero_time_wind_spectrum
-from dependencies.SINGLE_FREQ_FILTER_FS.main import SINGLE_FREQ_FILTER_FS as single_freq_filter_fs
+import sys
 from datetime import datetime
 from time import sleep
+
+import matplotlib.pyplot as plt
+import numpy as np
+import soundfile as sf
+from dependencies.gammatonegram.main import gammatonegram
+from dependencies.resample.main import resample
+from dependencies.SINGLE_FREQ_FILTER_FS.main import \
+    SINGLE_FREQ_FILTER_FS as single_freq_filter_fs
+from dependencies.ZERO_TIME_WIND_SPECTRUM.main import \
+    wind as zero_time_wind_spectrum
+from matplotlib.backends.backend_qt5agg import \
+    FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import \
+    NavigationToolbar2QT as NavigationToolbar
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import (QAction, QActionGroup, QApplication, QFileDialog,
+                             QGroupBox, QHBoxLayout, QLabel, QMainWindow,
+                             QMenu, QRadioButton, QSplitter, QTextEdit,
+                             QToolButton, QVBoxLayout, QWidget)
+from scipy.signal import spectrogram
+
 
 def plot_spectrogram(data, fs):
     f, t, Sxx = spectrogram(data, nfft=fs, window='hamming', nperseg=160, noverlap=80)
@@ -100,15 +110,18 @@ class AudioComponent(QGroupBox):
         self.radioButton3 = QRadioButton('Zero Time Wind Spectrum')
         self.radioButton3.clicked.connect(self.update_zero_time_wind_spectrum_plot)
         self.radioButton3.setDisabled(True)
-        self.radioButton4 = QRadioButton('sff')
-        self.radioButton4.clicked.connect(self.update_single_freq_filter_fs)
+        self.radioButton4 = QRadioButton('Gammatonegram')
+        self.radioButton4.clicked.connect(self.update_gammatonegram_plot)
         self.radioButton4.setDisabled(True)
+        self.radioButton5 = QRadioButton('sff')
+        self.radioButton5.clicked.connect(self.update_single_freq_filter_fs)
+        self.radioButton5.setDisabled(True)
 
         # self.radioButtonLayout.addWidget(self.radioButton1)
         self.radioButtonLayout.addWidget(self.radioButton2)
         self.radioButtonLayout.addWidget(self.radioButton3)
         self.radioButtonLayout.addWidget(self.radioButton4)
-
+        self.radioButtonLayout.addWidget(self.radioButton5)
         self.layout_area.addLayout(self.radioButtonLayout)
 
     def disable_radio_buttons(self):
@@ -116,12 +129,16 @@ class AudioComponent(QGroupBox):
         self.radioButton2.setDisabled(True)
         self.radioButton3.setDisabled(True)
         self.radioButton4.setDisabled(True)
+        self.radioButton5.setDisabled(True)
+
     
     def enable_radio_buttons(self):
         # self.radioButton1.setDisabled(False)
         self.radioButton2.setDisabled(False)
         self.radioButton3.setDisabled(False)
         self.radioButton4.setDisabled(False)
+        self.radioButton5.setDisabled(False)
+
 
     def update_plot(self):
         self.disable_radio_buttons()
@@ -167,6 +184,27 @@ class AudioComponent(QGroupBox):
         self.canvas_other.draw()
 
         self.enable_radio_buttons()
+
+    def update_gammatonegram_plot(self):
+        self.disable_radio_buttons()
+
+        self.set_loading_screen_in_plot()
+        YG = gammatonegram(self.resampled_data, self.resampled_fs)
+        f_bins = YG.shape[0]
+        fg = np.arange(0, f_bins) * self.resampled_fs / (2 * f_bins)
+        time_bins_g = YG.shape[1]
+        ts_g = np.arange(0, time_bins_g) * len(self.resampled_data) / time_bins_g
+        ts_g = ts_g / self.resampled_fs
+        T_g, F_g = np.meshgrid(ts_g, fg)
+        print(T_g.shape, F_g.shape)    
+        self.ax_other.pcolormesh(T_g, F_g, np.abs(YG), shading='auto')
+        # self.ax_other.colorbar(label='Magnitude')
+        # self.ax_other.xlabel('Time')
+        # self.ax_other.ylabel('Frequency')
+        self.canvas_other.draw()
+
+        self.enable_radio_buttons()
+        # plot_gammatone_2d(T_g, F_g, np.abs(YG))
 
     def update_single_freq_filter_fs(self):
 
