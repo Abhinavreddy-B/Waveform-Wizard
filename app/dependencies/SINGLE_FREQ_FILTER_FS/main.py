@@ -1,5 +1,8 @@
+import matplotlib.pyplot as plt
 import numpy as np
+from scipy.io import wavfile
 from scipy.signal import lfilter
+
 
 def SINGLE_FREQ_FILTER_FS(wav, fs, freq_step, f1, f2, r=None):
     #######################################################################
@@ -43,9 +46,6 @@ def SINGLE_FREQ_FILTER_FS(wav, fs, freq_step, f1, f2, r=None):
     env_wt = env * wks
 
     return env, env_wt
-
-from scipy.io import wavfile
-import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
     fs, x1 = wavfile.read("../../../samples/audio1.wav")
