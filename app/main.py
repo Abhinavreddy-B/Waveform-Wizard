@@ -6,10 +6,13 @@ from time import sleep
 import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
+from dependencies.formant_CGDZP.main import formant_CGDZP
 from dependencies.gammatonegram.main import gammatonegram
+# from dependencies.pitch_srh.main import pitch_srh
 from dependencies.resample.main import resample
 from dependencies.SINGLE_FREQ_FILTER_FS.main import \
     SINGLE_FREQ_FILTER_FS as single_freq_filter_fs
+from dependencies.voiced_unvoiced_own.main import voiced_unvoiced_own
 from dependencies.ZERO_TIME_WIND_SPECTRUM.main import \
     wind as zero_time_wind_spectrum
 from matplotlib.backends.backend_qt5agg import \
@@ -116,12 +119,20 @@ class AudioComponent(QGroupBox):
         self.radioButton5 = QRadioButton('sff')
         self.radioButton5.clicked.connect(self.update_single_freq_filter_fs)
         self.radioButton5.setDisabled(True)
+        self.radioButton6 = QRadioButton('Formant Peaks')
+        self.radioButton6.clicked.connect(self.update_formant_peaks)
+        self.radioButton6.setDisabled(True)
+        self.radioButton7 = QRadioButton('VAD')
+        self.radioButton7.clicked.connect(self.update_vad_plot)
+        self.radioButton7.setDisabled(True)
 
         # self.radioButtonLayout.addWidget(self.radioButton1)
         self.radioButtonLayout.addWidget(self.radioButton2)
         self.radioButtonLayout.addWidget(self.radioButton3)
         self.radioButtonLayout.addWidget(self.radioButton4)
         self.radioButtonLayout.addWidget(self.radioButton5)
+        self.radioButtonLayout.addWidget(self.radioButton6)
+        self.radioButtonLayout.addWidget(self.radioButton7)
         self.layout_area.addLayout(self.radioButtonLayout)
 
     def disable_radio_buttons(self):
@@ -130,6 +141,8 @@ class AudioComponent(QGroupBox):
         self.radioButton3.setDisabled(True)
         self.radioButton4.setDisabled(True)
         self.radioButton5.setDisabled(True)
+        self.radioButton6.setDisabled(True)
+        self.radioButton7.setDisabled(True)
 
     
     def enable_radio_buttons(self):
@@ -138,7 +151,8 @@ class AudioComponent(QGroupBox):
         self.radioButton3.setDisabled(False)
         self.radioButton4.setDisabled(False)
         self.radioButton5.setDisabled(False)
-
+        self.radioButton6.setDisabled(False)
+        self.radioButton7.setDisabled(False)
 
     def update_plot(self):
         self.disable_radio_buttons()
@@ -232,11 +246,66 @@ class AudioComponent(QGroupBox):
         self.ax_other.set_ylabel('Frequency')
 
         self.canvas_other.draw()
-        sleep(10)
 
         self.enable_radio_buttons()
 
         print("Exiting parent function")
+
+    def update_formant_peaks(self):
+    #     f0min = 80
+    #     f0max = 500
+    #     hopsize = 10
+                
+    #     F0s, VUVDecisions, _, _ = pitch_srh(self.resampled_data, self.resampled_fs, f0min, f0max, hopsize)
+    #     F0s = F0s * VUVDecisions
+        
+    #     s1 = spectrogram(self.resampled_data, self.resampled_fs, nperseg=80, noverlap=48, nfft=512, mode='magnitude')
+        
+    #     t_analysis, formantPeaks = formant_CGDZP(self.resampled_data, self.resampled_fs)
+    #     F1 = formantPeaks[:len(F0s), 0] * VUVDecisions
+    #     F2 = formantPeaks[:len(F0s), 1] * VUVDecisions
+    #     F3 = formantPeaks[:len(F0s), 2] * VUVDecisions
+        
+    #     F1[F1 < np.mean(F1) / 10] = np.nan
+    #     F2[F2 < np.mean(F2) / 10] = np.nan
+    #     F3[F3 < np.mean(F3) / 10] = np.nan
+        
+    #     freq_bins_sp1 = s1[1].size
+    #     fsn = self.resampled_fs / 2
+    #     fs_sp1 = np.arange(1, freq_bins_sp1 + 1) * fsn / freq_bins_sp1
+        
+    #     time_bins_sp1 = s1[1].T.size
+    #     ts_sp1 = np.arange(0, time_bins_sp1) * len(self.resampled_data) / (time_bins_sp1 - 1) / self.resampled_fs
+        
+    #     T_sp1, F_sp1 = np.meshgrid(ts_sp1, fs_sp1)
+        
+    #     self.ax_other.pcolormesh(T_sp1, F_sp1, 10 * np.log10(s1[2]), shading='auto')
+    #     self.ax_other.set_xlabel('Time')
+    #     self.ax_other.set_ylabel('Frequency')
+    #     self.canvas_other.draw()
+
+    #     self.enable_radio_buttons()
+        print("Exiting parent function")
+
+    def update_vad_plot(self):
+        self.disable_radio_buttons()
+        self.set_loading_screen_in_plot()
+
+        vuv, _ = voiced_unvoiced_own(self.data, self.fs)
+
+        t = np.arange(len(self.data)) / self.fs
+
+        plt.plot(t, vuv * 0.6)
+        plt.ylim(0, 1)
+
+        self.ax_other.plot(t, vuv*0.6)
+        self.ax_other.set_xlabel('Time')
+        self.ax_other.set_ylabel('Voiced/Unvoiced')
+        self.ax_other.set_ylim(0, 1)
+
+        self.canvas_other.draw()
+
+        self.enable_radio_buttons()
 
     def set_data(self, data, fs):
         print(data.shape)
