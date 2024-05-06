@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.signal import stft
-
+from stockwell import st
 
 def my_st_editted_for_fricatives_28(y, fs):
     """
@@ -25,16 +25,24 @@ def my_st_editted_for_fricatives_28(y, fs):
     frame_size = int(frame_size_in_ms * fs / 1000)
 
     # Dividing into frames without overlap
-    yf = np.array([dy[i:i+frame_size] for i in range(0, len(dy), frame_size)])
+    yf = [dy[i:i+frame_size] for i in range(0, len(dy), frame_size)]
 
     # Compute the S-transform for all frames
     s1 = []
     for frame in yf:
-        _, _, S = stft(frame, fs=fs, nperseg=frame_size)
-        s1.append(S)
+        frame = np.array(frame)
+        print('For frame', frame, frame.shape)
+        stock = st.st(frame, 0, fs)
 
-    s1 = np.array(s1)
-    s1 = np.abs(s1[:, :, :len(y)])  # Remove padded zeros
+        print('Result', stock, stock.shape)
+        stock = np.nan_to_num(stock, nan=0)
+        # s1 = np.concatenate((s1, stock.shape), axis=1)
+        s1.append(stock)
+
+    s1 = np.concatenate(s1, axis=1)
+    print(s1.shape)
+    # s1 = np.array(s1)
+    # s1 = np.abs(s1[:, :, :len(y)])  # Remove padded zeros
 
     # Time and frequency scales
     freq_resolution = fs / (2 * s1.shape[1])

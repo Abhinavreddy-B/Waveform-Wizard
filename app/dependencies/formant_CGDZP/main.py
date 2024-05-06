@@ -1,146 +1,149 @@
 import numpy as np
+from scipy.fft import fft, ifft
 
+def formant_CGDZP(wave, fs, frame_size=30, frame_shift=10):
+    num_formants = 5
+    num_formats_final = num_formants
+    frame_size = int(fs / 1000 * frame_size)
+    frame_shift = int(fs / 1000 * frame_shift)
+    fs_lr = 2048  # lower resolution
+    view_range = int(fs_lr / 3.2)
+    r = 1.12
+    rfix = r
+    max_formant_delta = 250  # discontinuity constraint (in Hz.) in formant tracks
 
-def formant_CGDZP(wave, fs, frameSize=30, frameShift=10):
-    # if frameShift is None:
-    #     frameShift = 10
-    # if frameSize is None:
-    #     frameSize = 30
-    
-    numFormants = 5
-    numFormatsFinal = numFormants
-    frameSize = int(fs / 1000 * frameSize)
-    frameShift = int(fs / 1000 * frameShift)
-    fsLR = 2048  # lower resolution
-    viewRange = round(fsLR / 3.2)
-    R = 1.12
-    Rfix = R
-    maxFormantDelta = 250  # discontinuity constraint(in Hz.) in formant tracks 
+    n = np.arange(frame_size - 1)  # zeroPhase data has length of N-1
 
-    n = np.arange(0, frameSize - 1)  # zeroPhase data has length of N-1
+    scaling_freq_axis = np.linspace(0.5, 1.5, view_range) - 0.25
+    ceps_smooth_select_percent = 3
+    select_time_index = int(ceps_smooth_select_percent * fs_lr / 2 / 100)
 
-    ScalingFreqAxis = np.arange(0.5, 1.5, 1 / (viewRange - 1))
-    ScalingFreqAxis = ScalingFreqAxis - 0.25
-    CepsSmoothSelectPercent = 3
-    SelectTimeIndex = round(CepsSmoothSelectPercent * fsLR / 2 / 100)
+    size_wave = len(wave)
+    num_frames = (size_wave - frame_size) // frame_shift
 
-    SIZEwave = len(wave)
-    numFrames = int(np.floor((SIZEwave - frameSize) / frameShift))
+    t_analysis = np.zeros(num_frames)
+    black_win = np.blackman(frame_size)
 
-    t_analysis = np.zeros(numFrames)
-    blackWin = np.blackman(frameSize)
+    formant_peaks = []
+    for kk in range(num_frames):
+        speech_data = wave[kk * frame_shift:kk * frame_shift + frame_size]
+        windowed_data = speech_data * black_win
 
-    formantPeaks = []
-    for kk in range(numFrames):
-        speechData = wave[kk * frameShift: kk * frameShift + frameSize]
-        windowedData = speechData * blackWin
-        
-        zeroPhaseData = np.real(np.fft.ifft(np.abs(np.fft.fft(np.diff(windowedData)))))  # obtain zero-phase version
-        
-        numPeaks = 0
-        R = Rfix
-        while numPeaks != numFormants and R > 1.01 and R < 1.25:
-            # Chirp z-transform calculation using fft,... multiplication with an exponential function is sufficient
-            exponentialEnvelope = np.exp(np.log(1 / R) * n)  # this is needed for computation of z-transform using fft
-            fourierTrans = np.fft.fft(zeroPhaseData * exponentialEnvelope, fsLR)
-            angFFT = np.angle(fourierTrans[:viewRange])
-            chirpGroupDelay = -np.diff(angFFT)
-            
-            peakIndex = formantPeakPick(chirpGroupDelay, 1)
-            numPeaks = len(peakIndex)
-            if numPeaks > numFormants and R >= Rfix:
-                R += 0.01
-                peakIndex = peakIndex[:numFormants]
-            elif numPeaks < numFormants and R <= Rfix:
-                R -= 0.01
-                peakIndex += [0] * (numFormants - numPeaks)
+        zero_phase_data = np.real(ifft(np.abs(fft(np.diff(windowed_data)))))  # obtain zero-pha version
+
+        num_peaks = 0
+        r = rfix  # the following loop searches for the R value where we have numFormants number of formats
+        while num_peaks != num_formants and 1.01 < r < 1.25:
+            # chirp z-transform calculation using fft, multiplication with an exponential function is sufficient
+            exponential_envelope = np.exp(np.log(1 / r) * n)  # this is needed for computation of z-transform using fft
+            fourier_trans = fft(zero_phase_data * exponential_envelope, fs_lr)
+            ang_fft = np.angle(fourier_trans[:view_range])
+            chirp_group_delay = -np.diff(ang_fft)
+
+            peak_index = formant_peak_pick(chirp_group_delay, 1)
+            num_peaks = len(peak_index)
+            if num_peaks > num_formants and r >= rfix:
+                r += 0.01
+                peak_index = peak_index[:num_formants]
+            elif num_peaks < num_formants and r <= rfix:
+                r -= 0.01
+                peak_index = np.pad(peak_index, (0, num_formants - num_peaks), mode='constant')
             else:
                 break
-        
-        if numPeaks > numFormants:
-            peakIndex = peakIndex[:numFormants]
-        elif numPeaks < numFormants:
-            peakIndex += [0] * (numFormants - len(peakIndex))
-        
-        formantPeaks.append(peakIndex)
-        t_analysis[kk] = round(((kk * frameShift + kk * frameShift + frameSize) / 2) / fs)
-    formantPeaks = np.round(np.array(formantPeaks) * fs / fsLR)
+
+        if num_peaks > num_formants:
+            peak_index = peak_index[:num_formants]
+        elif num_peaks < num_formants:
+            peak_index = np.pad(peak_index, (0, num_formants - len(peak_index)), mode='constant')
+        formant_peaks.append(peak_index)
+
+        t_analysis[kk] = (kk * frame_shift + 1 + kk * frame_shift + frame_size) / 2 / fs
+
+    formant_peaks = np.round(np.array(formant_peaks) * fs / fs_lr).astype(int)
 
     if True:  # filtering
         # form a matrix of distance cost
-        formantPeaksCost = formantPeaks * 0
-        for kk in range(2, numFrames - 2):
-            prePrePeaks = formantPeaks[kk - 2, :]
-            postPostPeaks = formantPeaks[kk + 2, :]
-            prePeaks = formantPeaks[kk - 1, :]
-            postPeaks = formantPeaks[kk + 1, :]
-            currentPeaks = formantPeaks[kk, :]
-            currentPeaksCost = currentPeaks * 0  # cost will correspond to average distance from closest match to neighbours
-            for mm in range(numFormants):
-                if currentPeaks[mm] == 0:
-                    currentPeaksCost[mm] = fs / 2
+        formant_peaks_cost = np.zeros_like(formant_peaks)
+        for kk in range(2, num_frames - 2):
+            pre_pre_peaks = formant_peaks[kk - 2, :]
+            post_post_peaks = formant_peaks[kk + 2, :]
+            pre_peaks = formant_peaks[kk - 1, :]
+            post_peaks = formant_peaks[kk + 1, :]
+            current_peaks = formant_peaks[kk, :]
+            current_peaks_cost = np.zeros_like(current_peaks)  # cost will correspond to average distance from closest match to neighbours
+            for mm in range(num_formants):
+                if current_peaks[mm] == 0:
+                    current_peaks_cost[mm] = fs / 2
                 else:
                     # search for closest matches
-                    distanceArrayPre = sorted(abs(prePeaks - currentPeaks[mm]))
-                    distanceArrayPost = sorted(abs(postPeaks - currentPeaks[mm]))
-                    distanceArrayPrePre = sorted(abs(prePrePeaks - currentPeaks[mm]))
-                    distanceArrayPostPost = sorted(abs(postPostPeaks - currentPeaks[mm]))
-                    allDistances = [(distanceArrayPre[0] + distanceArrayPost[0]) / 2, distanceArrayPre[0], distanceArrayPost[0]]
-                    allDistances2 = [(distanceArrayPrePre[0] + distanceArrayPostPost[0]) / 2, distanceArrayPrePre[0], distanceArrayPostPost[0]]
-                    currentPeaksCost[mm] = min(allDistances + allDistances2)
-            formantPeaksCost[kk, :] = currentPeaksCost
-        for kk in range(numFrames):
-            for mm in range(numFormants):
-                if formantPeaksCost[kk, mm] > maxFormantDelta:
-                    formantPeaks[kk, mm] = 0
+                    distance_array_pre = np.sort(np.abs(pre_peaks - current_peaks[mm]))
+                    distance_array_post = np.sort(np.abs(post_peaks - current_peaks[mm]))
+                    distance_array_pre_pre = np.sort(np.abs(pre_pre_peaks - current_peaks[mm]))
+                    distance_array_post_post = np.sort(np.abs(post_post_peaks - current_peaks[mm]))
+                    all_distances = [(distance_array_pre[0] + distance_array_post[0]) / 2, distance_array_pre[0], distance_array_post[0]]
+                    all_distances2 = [(distance_array_pre_pre[0] + distance_array_post_post[0]) / 2, distance_array_pre_pre[0], distance_array_post_post[0]]
+                    current_peaks_cost[mm] = min(all_distances + all_distances2)
+            formant_peaks_cost[kk, :] = current_peaks_cost
+
+        # make decision based on costs
+        for kk in range(num_frames):
+            for mm in range(num_formants):
+                if formant_peaks_cost[kk, mm] > max_formant_delta:
+                    formant_peaks[kk, mm] = 0
+
     if True:  # replace possible continuation values instead of zero values
-        for kk in range(1, numFrames - 1):
-            currentPeaks = formantPeaks[kk, :]
-            index = [i for i, val in enumerate(currentPeaks) if val != 0]  # finds non-zero elements
-            nonZeroFormants = currentPeaks[index]
-            numNonZeroFormants = len(index)
-            numZeroFormants = numFormants - numNonZeroFormants
-            if numNonZeroFormants < numFormants and index:
-                possibleValues = sorted([val for val in [formantPeaks[kk - 1, :], formantPeaks[kk + 1, :]]])
-                possibleValues = [val for sublist in possibleValues for val in sublist if val != 0]  # discard zero entries
-                possibleCandidates = []
-                for mm in range(len(possibleValues)):
-                    distanceArray = sorted(abs(nonZeroFormants - possibleValues[mm]))
-                    if not distanceArray or distanceArray[0] > maxFormantDelta:  # this possible value not found in the current vector
-                        possibleCandidates.append(possibleValues[mm])
+        for kk in range(1, num_frames - 1):
+            current_peaks = formant_peaks[kk, :]
+            index = np.nonzero(current_peaks)[0]  # finds non-zero elements
+            non_zero_formants = current_peaks[index]
+            num_non_zero_formants = len(index)
+            num_zero_formants = num_formants - num_non_zero_formants
+            if num_non_zero_formants < num_formants and index.size > 0:
+                possible_values = np.sort(np.concatenate((formant_peaks[kk - 1, :], formant_peaks[kk + 1, :])))
+                possible_values = possible_values[possible_values != 0]  # discard zero entries
+                possible_candidates = []  # candidate for the zero valued formant
+                for mm in range(len(possible_values)):
+                    distance_array = np.sort(np.abs(non_zero_formants - possible_values[mm]))
+                    if not distance_array.size or distance_array[0] > max_formant_delta:  # this possible value not found in the current vector
+                        possible_candidates.append(possible_values[mm])
+                possible_candidates = np.array(possible_candidates)
+
                 # choose among possible candidates
-                lenPossibleCandidates = len(possibleCandidates)
-                if lenPossibleCandidates <= numZeroFormants:
-                    currentPeaks = sorted(nonZeroFormants + possibleCandidates + [0] * (numZeroFormants - lenPossibleCandidates))
-                elif numZeroFormants == 1:  # the most common case
-                    index = sorted(range(len(possibleCandidates)), key=lambda x: possibleCandidates[x + 1] - possibleCandidates[x])
-                    currentPeaks = sorted(nonZeroFormants + [possibleCandidates[index[0]]] + [0])
-                elif numZeroFormants < lenPossibleCandidates:
-                    possibleCandidates = possibleCandidates[:numZeroFormants]
-                    currentPeaks = sorted(nonZeroFormants + possibleCandidates)
-                formantPeaks[kk, :] = currentPeaks
+                len_possible_candidates = len(possible_candidates)
+                if len_possible_candidates <= num_zero_formants:
+                    current_peaks = np.sort(np.concatenate((non_zero_formants, possible_candidates, np.zeros(num_zero_formants - len_possible_candidates))))
+                elif num_zero_formants == 1:  # the most common case
+                    index = np.argsort(np.diff(possible_candidates))[0]
+                    current_peaks = np.sort(np.concatenate((non_zero_formants, [possible_candidates[index]])))
+                elif num_zero_formants < len_possible_candidates:
+                    possible_candidates = possible_candidates[:num_zero_formants]
+                    current_peaks = np.sort(np.concatenate((non_zero_formants, possible_candidates)))
+                formant_peaks[kk, :] = current_peaks
 
-def formantPeakPick(diffPhase, minPeakDist):
-    lendiffPhase = len(diffPhase)
-    peakIndex = []
+    return formant_peaks, t_analysis
 
-    for kk in range(6, lendiffPhase - 6):
-        if (diffPhase[kk] >= diffPhase[kk - 1] and diffPhase[kk] >= diffPhase[kk + 1]) and \
-           (diffPhase[kk] >= diffPhase[kk - 2] and diffPhase[kk] >= diffPhase[kk + 2]) and \
-           (diffPhase[kk] > diffPhase[kk - 3] and diffPhase[kk] > diffPhase[kk + 3]) and \
-           (diffPhase[kk] > diffPhase[kk - 4] and diffPhase[kk] > diffPhase[kk + 4]) and \
-           (diffPhase[kk] > diffPhase[kk - 5] and diffPhase[kk] > diffPhase[kk + 5]):
-            peakIndex.append(kk)
+def formant_peak_pick(diff_phase, min_peak_dist):
+    len_diff_phase = len(diff_phase)
 
-    lenPeakInd = len(peakIndex)
-    kk = 2
-    while kk <= lenPeakInd:
-        if peakIndex[kk] - peakIndex[kk - 1] < minPeakDist:
-            peakIndex[kk] = round((peakIndex[kk] * diffPhase[kk] + peakIndex[kk - 1] * diffPhase[kk - 1]) /
-                                  (diffPhase[kk] + diffPhase[kk - 1]))
-            peakIndex = peakIndex[:kk - 1] + [peakIndex[kk]] + peakIndex[kk:lenPeakInd]
-            kk -= 1
-            lenPeakInd -= 1
-        kk += 1
+    peak_index = []
+    for kk in range(6, len_diff_phase - 6):
+        if (diff_phase[kk] >= diff_phase[kk - 1] and diff_phase[kk] >= diff_phase[kk + 1]) and \
+           (diff_phase[kk] >= diff_phase[kk - 2] and diff_phase[kk] >= diff_phase[kk + 2]) and \
+           (diff_phase[kk] > diff_phase[kk - 3] and diff_phase[kk] > diff_phase[kk + 3]) and \
+           (diff_phase[kk] > diff_phase[kk - 4] and diff_phase[kk] > diff_phase[kk + 4]) and \
+           (diff_phase[kk] > diff_phase[kk - 5] and diff_phase[kk] > diff_phase[kk + 5]):
+            peak_index.append(kk)
 
-    return peakIndex
+    len_peak_ind = len(peak_index)
+    kk = 1
+    while kk < len_peak_ind:
+        if peak_index[kk] - peak_index[kk - 1] < min_peak_dist:
+            peak_index[kk] = int((peak_index[kk] * diff_phase[kk] + peak_index[kk - 1] * diff_phase[kk - 1]) / (diff_phase[kk] + diff_phase[kk - 1]))
+            peak_index = peak_index[:kk] + peak_index[kk + 1:]
+            len_peak_ind -= 1
+        else:
+            kk += 1
+
+    return peak_index
+
+

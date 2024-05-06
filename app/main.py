@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 from datetime import datetime
 from time import sleep
 
@@ -8,7 +9,9 @@ import numpy as np
 import soundfile as sf
 from dependencies.formant_CGDZP.main import formant_CGDZP
 from dependencies.gammatonegram.main import gammatonegram
-# from dependencies.pitch_srh.main import pitch_srh
+from dependencies.my_st_editted_for_fricatives_28.main import \
+    my_st_editted_for_fricatives_28
+from dependencies.pitch_srh.main import pitch_srh
 from dependencies.resample.main import resample
 from dependencies.SINGLE_FREQ_FILTER_FS.main import \
     SINGLE_FREQ_FILTER_FS as single_freq_filter_fs
@@ -54,6 +57,13 @@ class AudioComponent(QGroupBox):
 
         self.data = None
         self.fs = None
+        self.resampled_data = None
+        self.resampled_fs = None
+
+        # Variable holding data of second channel. (for EGG)
+        self.second_data = None
+        self.second_fs = None
+        self.second_channel_available = False
 
     def initUI(self):
         self.layout_area = QVBoxLayout()
@@ -108,23 +118,29 @@ class AudioComponent(QGroupBox):
         # self.radioButton1.clicked.connect(self.update_plot)
         # self.radioButton1.setDisabled(True)
         self.radioButton2 = QRadioButton('Spectogram')
-        self.radioButton2.clicked.connect(self.update_spectogram_plot)
+        self.radioButton2.clicked.connect(self.update_in_background(self.update_spectogram_plot))
         self.radioButton2.setDisabled(True)
         self.radioButton3 = QRadioButton('Zero Time Wind Spectrum')
-        self.radioButton3.clicked.connect(self.update_zero_time_wind_spectrum_plot)
+        self.radioButton3.clicked.connect(self.update_in_background(self.update_zero_time_wind_spectrum_plot))
         self.radioButton3.setDisabled(True)
         self.radioButton4 = QRadioButton('Gammatonegram')
-        self.radioButton4.clicked.connect(self.update_gammatonegram_plot)
+        self.radioButton4.clicked.connect(self.update_in_background(self.update_gammatonegram_plot))
         self.radioButton4.setDisabled(True)
         self.radioButton5 = QRadioButton('sff')
-        self.radioButton5.clicked.connect(self.update_single_freq_filter_fs)
+        self.radioButton5.clicked.connect(self.update_in_background(self.update_single_freq_filter_fs))
         self.radioButton5.setDisabled(True)
         self.radioButton6 = QRadioButton('Formant Peaks')
-        self.radioButton6.clicked.connect(self.update_formant_peaks)
+        self.radioButton6.clicked.connect(self.update_in_background(self.update_formant_peaks))
         self.radioButton6.setDisabled(True)
         self.radioButton7 = QRadioButton('VAD')
-        self.radioButton7.clicked.connect(self.update_vad_plot)
+        self.radioButton7.clicked.connect(self.update_in_background(self.update_vad_plot))
         self.radioButton7.setDisabled(True)
+        self.radioButton8 = QRadioButton('S-Transform')
+        self.radioButton8.clicked.connect(self.update_in_background(self.update_stransform_plot))
+        self.radioButton8.setDisabled(True)
+        self.radioButton9 = QRadioButton('Pitch Contours')
+        self.radioButton9.clicked.connect(self.update_in_background(self.update_pitch_contour_plot))
+        self.radioButton9.setDisabled(True)
 
         # self.radioButtonLayout.addWidget(self.radioButton1)
         self.radioButtonLayout.addWidget(self.radioButton2)
@@ -133,6 +149,8 @@ class AudioComponent(QGroupBox):
         self.radioButtonLayout.addWidget(self.radioButton5)
         self.radioButtonLayout.addWidget(self.radioButton6)
         self.radioButtonLayout.addWidget(self.radioButton7)
+        self.radioButtonLayout.addWidget(self.radioButton8)
+        self.radioButtonLayout.addWidget(self.radioButton9)
         self.layout_area.addLayout(self.radioButtonLayout)
 
     def disable_radio_buttons(self):
@@ -143,6 +161,8 @@ class AudioComponent(QGroupBox):
         self.radioButton5.setDisabled(True)
         self.radioButton6.setDisabled(True)
         self.radioButton7.setDisabled(True)
+        self.radioButton8.setDisabled(True)
+        self.radioButton9.setDisabled(True)
 
     
     def enable_radio_buttons(self):
@@ -153,7 +173,15 @@ class AudioComponent(QGroupBox):
         self.radioButton5.setDisabled(False)
         self.radioButton6.setDisabled(False)
         self.radioButton7.setDisabled(False)
+        self.radioButton8.setDisabled(False)
+        self.radioButton9.setDisabled(False)
 
+    def update_in_background(self, func):
+        def background_func():
+            thread = threading.Thread(target=func)
+            thread.start()
+        return background_func
+    
     def update_plot(self):
         self.disable_radio_buttons()
         # self.set_loading_screen_in_plot()
@@ -252,39 +280,41 @@ class AudioComponent(QGroupBox):
         print("Exiting parent function")
 
     def update_formant_peaks(self):
-    #     f0min = 80
-    #     f0max = 500
-    #     hopsize = 10
-                
-    #     F0s, VUVDecisions, _, _ = pitch_srh(self.resampled_data, self.resampled_fs, f0min, f0max, hopsize)
-    #     F0s = F0s * VUVDecisions
-        
-    #     s1 = spectrogram(self.resampled_data, self.resampled_fs, nperseg=80, noverlap=48, nfft=512, mode='magnitude')
-        
-    #     t_analysis, formantPeaks = formant_CGDZP(self.resampled_data, self.resampled_fs)
-    #     F1 = formantPeaks[:len(F0s), 0] * VUVDecisions
-    #     F2 = formantPeaks[:len(F0s), 1] * VUVDecisions
-    #     F3 = formantPeaks[:len(F0s), 2] * VUVDecisions
-        
-    #     F1[F1 < np.mean(F1) / 10] = np.nan
-    #     F2[F2 < np.mean(F2) / 10] = np.nan
-    #     F3[F3 < np.mean(F3) / 10] = np.nan
-        
-    #     freq_bins_sp1 = s1[1].size
-    #     fsn = self.resampled_fs / 2
-    #     fs_sp1 = np.arange(1, freq_bins_sp1 + 1) * fsn / freq_bins_sp1
-        
-    #     time_bins_sp1 = s1[1].T.size
-    #     ts_sp1 = np.arange(0, time_bins_sp1) * len(self.resampled_data) / (time_bins_sp1 - 1) / self.resampled_fs
-        
-    #     T_sp1, F_sp1 = np.meshgrid(ts_sp1, fs_sp1)
-        
-    #     self.ax_other.pcolormesh(T_sp1, F_sp1, 10 * np.log10(s1[2]), shading='auto')
-    #     self.ax_other.set_xlabel('Time')
-    #     self.ax_other.set_ylabel('Frequency')
-    #     self.canvas_other.draw()
+        self.disable_radio_buttons()
+        self.set_loading_screen_in_plot()
 
-    #     self.enable_radio_buttons()
+        f0min = 80
+        f0max = 500
+        hopsize = 10
+                
+        F0s, VUVDecisions, _, _ = pitch_srh(self.data, self.fs, f0min, f0max, hopsize)
+        F0s = F0s * VUVDecisions
+        
+        s1 = spectrogram(self.data, self.fs, nperseg=80, noverlap=48, nfft=512, mode='magnitude')
+        print(len(s1))
+        formantPeaks, t_analysis = formant_CGDZP(self.data, self.fs)
+        F1 = formantPeaks[:len(F0s), 0] * VUVDecisions
+        F2 = formantPeaks[:len(F0s), 1] * VUVDecisions
+        F3 = formantPeaks[:len(F0s), 2] * VUVDecisions
+
+        F1[F1 < np.mean(F1) / 10] = np.nan
+        F2[F2 < np.mean(F2) / 10] = np.nan
+        F3[F3 < np.mean(F3) / 10] = np.nan
+        
+        freq_bins_sp1 = len(s1[0])
+        fsn = self.fs / 2
+        fs_sp1 = np.linspace(1, freq_bins_sp1, freq_bins_sp1) * fsn / freq_bins_sp1
+        time_bins_sp1 = len(s1[1])
+        ts_sp1 = np.linspace(0, len(self.data) - 1, time_bins_sp1) / self.fs
+
+        T_sp1, F_sp1 = np.meshgrid(ts_sp1, fs_sp1)
+        
+        self.ax_other.pcolormesh(T_sp1, F_sp1, 10 * np.log10(s1[2]), shading='auto')
+        self.ax_other.set_xlabel('Time')
+        self.ax_other.set_ylabel('Frequency')        
+        self.canvas_other.draw()
+
+        self.enable_radio_buttons()
         print("Exiting parent function")
 
     def update_vad_plot(self):
@@ -307,17 +337,66 @@ class AudioComponent(QGroupBox):
 
         self.enable_radio_buttons()
 
+    def update_stransform_plot(self):
+        self.disable_radio_buttons()
+        self.set_loading_screen_in_plot()
+
+        _, _, s2 = my_st_editted_for_fricatives_28(self.resampled_data, self.resampled_fs)
+
+        ST = s2
+
+        freq_bins = ST.shape[0]
+        fsn = self.resampled_fs / 2
+        f1 = np.linspace(0, fsn, freq_bins)
+        time_bins = ST.shape[1]
+        ts = np.linspace(0, len(self.resampled_data), time_bins) / self.resampled_fs
+
+        # Create a meshgrid for plotting
+        T, F = np.meshgrid(ts, f1)
+
+        self.ax_other.pcolormesh(T, F, np.abs(ST), shading='auto')
+        self.ax_other.set_xlabel('Time')
+        self.ax_other.set_ylabel('Frequency')
+
+        self.canvas_other.draw()
+
+        self.enable_radio_buttons()
+
+    def update_pitch_contour_plot(self):
+        self.disable_radio_buttons()
+        self.set_loading_screen_in_plot()
+
+        f0min = 50
+        f0max = 500
+        hopsize = 5
+
+        t = np.arange(len(self.data)) / self.fs
+
+        F0s, VUVDecisions, _, _ = pitch_srh(self.data, self.fs, f0min, f0max, hopsize)
+        F0s = F0s * VUVDecisions
+        tf0 = np.linspace(0, t[-1], len(F0s))
+
+        self.ax_other.plot(tf0, F0s, '*')
+        
+        self.canvas_other.draw()
+        self.enable_radio_buttons()        
+        
     def set_data(self, data, fs):
         print(data.shape)
         self.data = data
         self.fs = fs
 
-        self.resampled_data = resample(self.data, 8000, self.fs)
-        self.resampled_fs = 8000
+        self.resampled_data = resample(self.data, 4000, self.fs)
+        self.resampled_fs = 4000
 
         self.update_plot()
         self.enable_radio_buttons()
 
+    def set_second_channel_data(self, data, fs):
+        self.second_data = data
+        self.second_fs = fs
+        self.second_channel_available = True
+    
     def set_loading_screen_in_plot(self):
         print('Inside clear function')
         self.ax_other.clear()
