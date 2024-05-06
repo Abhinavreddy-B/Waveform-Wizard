@@ -378,10 +378,9 @@ def plot_gammatone(data, fs):
     print(T_g.shape, F_g.shape)    
     plot_gammatone_2d(T_g, F_g, np.abs(YG))
 
-audio_file_path = '/home/sasidhar/Sem6/BTP/Waveform-Wizard/samples/audio1.wav'
-y, sr = librosa.load(audio_file_path, sr=None)
-data = y.astype(float)
-fs = float(sr)
-
 if __name__ == '__main__':
+  audio_file_path = '/home/sasidhar/Sem6/BTP/Waveform-Wizard/samples/audio1.wav'
+  y, sr = librosa.load(audio_file_path, sr=None)
+  data = y.astype(float)
+  fs = float(sr)
   plot_gammatone(data, fs)
