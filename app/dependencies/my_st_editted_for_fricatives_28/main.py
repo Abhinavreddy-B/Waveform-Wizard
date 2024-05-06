@@ -2,6 +2,7 @@ import numpy as np
 from scipy.signal import stft
 from stockwell import st
 
+
 def my_st_editted_for_fricatives_28(y, fs):
     """
     Computes the S-transform output for the input waveform.

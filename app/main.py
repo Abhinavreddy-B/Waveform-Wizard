@@ -7,6 +7,7 @@ from time import sleep
 import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
+from dependencies.constantQ.main import constantq
 from dependencies.formant_CGDZP.main import formant_CGDZP
 from dependencies.gammatonegram.main import gammatonegram
 from dependencies.my_st_editted_for_fricatives_28.main import \
@@ -38,6 +39,15 @@ def plot_spectrogram(data, fs):
     plt.colorbar(label='Magnitude [dB]')
     plt.show()
 
+def has_second_channel(audio):
+    print(audio.ndim, audio.shape)
+    if audio.ndim == 1:
+        return False
+    elif audio.ndim == 2 and audio.shape[1] == 2:
+        # Type 2 audio (shape: (n, 2))
+        # Take only the first channel
+        return True
+    
 def process_audio(audio):
     if audio.ndim == 1:
         # Type 1 audio (shape: (n,))
@@ -141,6 +151,12 @@ class AudioComponent(QGroupBox):
         self.radioButton9 = QRadioButton('Pitch Contours')
         self.radioButton9.clicked.connect(self.update_in_background(self.update_pitch_contour_plot))
         self.radioButton9.setDisabled(True)
+        self.radioButton10 = QRadioButton('Constant-Q')
+        self.radioButton10.clicked.connect(self.update_in_background(self.update_constantq_plot))
+        self.radioButton10.setDisabled(True)
+        self.radioButton11 = QRadioButton('EGG')
+        self.radioButton11.clicked.connect(self.update_in_background(self.update_egg_plot))
+        self.radioButton11.setDisabled(True)
 
         # self.radioButtonLayout.addWidget(self.radioButton1)
         self.radioButtonLayout.addWidget(self.radioButton2)
@@ -151,6 +167,8 @@ class AudioComponent(QGroupBox):
         self.radioButtonLayout.addWidget(self.radioButton7)
         self.radioButtonLayout.addWidget(self.radioButton8)
         self.radioButtonLayout.addWidget(self.radioButton9)
+        self.radioButtonLayout.addWidget(self.radioButton10)
+        self.radioButtonLayout.addWidget(self.radioButton11)
         self.layout_area.addLayout(self.radioButtonLayout)
 
     def disable_radio_buttons(self):
@@ -163,7 +181,8 @@ class AudioComponent(QGroupBox):
         self.radioButton7.setDisabled(True)
         self.radioButton8.setDisabled(True)
         self.radioButton9.setDisabled(True)
-
+        self.radioButton10.setDisabled(True)
+        self.radioButton11.setDisabled(True)
     
     def enable_radio_buttons(self):
         # self.radioButton1.setDisabled(False)
@@ -175,6 +194,8 @@ class AudioComponent(QGroupBox):
         self.radioButton7.setDisabled(False)
         self.radioButton8.setDisabled(False)
         self.radioButton9.setDisabled(False)
+        self.radioButton10.setDisabled(False)
+        self.radioButton11.setDisabled(False)
 
     def update_in_background(self, func):
         def background_func():
@@ -379,7 +400,40 @@ class AudioComponent(QGroupBox):
         self.ax_other.plot(tf0, F0s, '*')
         
         self.canvas_other.draw()
-        self.enable_radio_buttons()        
+        self.enable_radio_buttons() 
+
+    def update_constantq_plot(self):
+        self.disable_radio_buttons()
+        self.set_loading_screen_in_plot()
+
+        CC, fs_cq = constantq(self.resampled_data, self.resampled_fs)
+        # CC = CC[:CC.shape[0] // 2, :]
+        time_bins_cq = CC.shape[1]
+
+        ts_cq = np.linspace(0, len(self.resampled_data) / self.resampled_fs, time_bins_cq)
+        fs_cq = fs_cq[:CC.shape[0]]
+        T_cq, F_cq = np.meshgrid(ts_cq, fs_cq)
+
+        self.ax_other.pcolormesh(T_cq, F_cq, np.abs(CC), shading='auto')
+        self.ax_other.set_xlabel('Time')
+        self.ax_other.set_ylabel('Frequency')
+
+        self.canvas_other.draw()
+        self.enable_radio_buttons()
+    
+    def update_egg_plot(self):
+        self.disable_radio_buttons()
+        self.set_loading_screen_in_plot()
+        
+        if self.second_data is None:
+            self.ax_other.set_axis_off()
+            self.ax_other.text(0.5, 0.5, '2nd channel Not available for this file', horizontalalignment='center', verticalalignment='center', fontsize=12)
+        else:
+            self.ax_other.plot(self.second_data)
+
+        # self.ax_other
+        self.canvas_other.draw()
+        self.enable_radio_buttons()
         
     def set_data(self, data, fs):
         print(data.shape)
@@ -538,11 +592,13 @@ class MyMainWindow(QMainWindow):
                 self.refresh_left_area()
 
                 data, samplerate = sf.read(self.file_path)
-                data = process_audio(data)
-                # print(data, samplerate)
 
-                # plot_spectrogram(data, samplerate)
-                self.left_component.set_data(data, samplerate)
+                first_data = process_audio(data)
+                self.left_component.set_data(first_data, samplerate)
+                
+                if has_second_channel(data) == True:
+                    second_data = data[:, 1]
+                    self.left_component.set_second_channel_data(second_data, samplerate)
 
     def compareFiles(self):
         options = QFileDialog.Options()
@@ -556,9 +612,13 @@ class MyMainWindow(QMainWindow):
                 self.refresh_right_area()
 
                 data, samplerate = sf.read(self.file_path_2)
-                data = process_audio(data)
+                first_data = process_audio(data)
+                self.right_component.set_data(first_data, samplerate)
                 
-                self.right_component.set_data(data, samplerate)
+                if has_second_channel(data) == True:
+                    second_data = data[:, 1]
+                    self.right_component.set_second_channel_data(second_data, samplerate)
+
                 self.splitter.addWidget(self.right_component)
 
     def refresh_left_area(self):
