@@ -1,10 +1,11 @@
 import librosa
-import librosa.display
-import matplotlib.pyplot as plt
 import numpy as np
 
 
 def constantq(data, fs):
-    C = librosa.cqt(data, sr=fs, fmin=10, n_bins=librosa.note_to_midi('C8') - librosa.note_to_midi('C1'))
-    fs_bins_cq = librosa.cqt_frequencies(C.shape[0], fmin=librosa.note_to_hz('C2'))
-    return np.abs(C), fs_bins_cq
+    CC1 = librosa.cqt(data, sr=fs, bins_per_octave=12, fmin=10)
+    CC = np.abs(CC1)
+    nyquist_bin = CC.shape[0]
+    CC = CC[:nyquist_bin, :]
+    fs_bins_cq = librosa.cqt_frequencies(n_bins=nyquist_bin, fmin=10, bins_per_octave=12)
+    return CC, fs_bins_cq

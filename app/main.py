@@ -24,12 +24,10 @@ from matplotlib.backends.backend_qt5agg import \
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (QAction, QActionGroup, QApplication, QFileDialog,
                              QGroupBox, QHBoxLayout, QLabel, QMainWindow,
-                             QMenu, QRadioButton, QSplitter, QTextEdit,
-                             QToolButton, QVBoxLayout, QWidget)
+                             QMenu, QMessageBox, QRadioButton, QSplitter,
+                             QTextEdit, QToolButton, QVBoxLayout, QWidget)
 from scipy.signal import spectrogram
 
-
-from PyQt5.QtWidgets import QApplication, QMessageBox
 
 def show_error_message(message):
     msg = QMessageBox()
@@ -422,11 +420,9 @@ class AudioComponent(QGroupBox):
         self.set_loading_screen_in_plot()
 
         CC, fs_cq = constantq(self.resampled_data, self.resampled_fs)
-        # CC = CC[:CC.shape[0] // 2, :]
         time_bins_cq = CC.shape[1]
 
         ts_cq = np.linspace(0, len(self.resampled_data) / self.resampled_fs, time_bins_cq)
-        fs_cq = fs_cq[:CC.shape[0]]
         T_cq, F_cq = np.meshgrid(ts_cq, fs_cq)
 
         self.ax_other.pcolormesh(T_cq, F_cq, np.abs(CC), shading='auto')
