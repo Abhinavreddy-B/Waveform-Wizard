@@ -20,14 +20,23 @@ g++ -shared *.o -o libTIME.so -fPIC -fopenmp
 cd ../../../../../
 echo "Compiling ZERO_TIME_WIND_SPECTRUM library succesfully"
 
+echo "Installing pyinstaller"
+pip3 install pyinstaller
+echo "Installed pyinstaller successfully"
+
+echo "Building files...."
+rm -r build dist
+pyinstaller wavvy.spec
+echo "Built succesfully"
+
 echo "Adding Wavvy to your application list..."
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-BASE_DIR="$SCRIPT_DIR/app"
-FILE_NAME="main.py"
-FILE_PATH="$BASE_DIR/$FILE_NAME"
+BASE_DIR="$SCRIPT_DIR/dist/wavvy"
+BINARY_NAME="wavvy"
+BINARY_PATH="$BASE_DIR/$BINARY_NAME"
 APP_NAME="Wavvy"
 APP_DESCRIPTION="Audio analysis tool"
-ICON_PATH="$SCRIPT_DIR/assets/logo.jpeg"
+ICON_PATH="$SCRIPT_DIR/assets/logo.png"
 WORKING_DIRECTORY="$BASE_DIR"
 cd "$BASE_DIR" || exit
 
@@ -38,7 +47,7 @@ sudo su <<EOF
   Type=Application
   Name=$APP_NAME
   Comment=$APP_DESCRIPTION
-  Exec=python3 $FILE_PATH
+  Exec=$BINARY_PATH
   Icon=$ICON_PATH
   Terminal=false
   Categories=Utility;" > /usr/share/applications/$APP_NAME.desktop

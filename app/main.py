@@ -10,8 +10,6 @@ import soundfile as sf
 from dependencies.constantQ.main import constantq
 from dependencies.formant_CGDZP.main import formant_CGDZP
 from dependencies.gammatonegram.main import gammatonegram
-from dependencies.my_st_editted_for_fricatives_28.main import \
-    my_st_editted_for_fricatives_28
 from dependencies.pitch_srh.main import pitch_srh
 from dependencies.resample.main import resample
 from dependencies.SINGLE_FREQ_FILTER_FS.main import \
@@ -31,13 +29,21 @@ from PyQt5.QtWidgets import (QAction, QActionGroup, QApplication, QFileDialog,
 from scipy.signal import spectrogram
 
 
-def plot_spectrogram(data, fs):
-    f, t, Sxx = spectrogram(data, nfft=fs, window='hamming', nperseg=160, noverlap=80)
-    plt.pcolormesh(t, f, 10 * np.log10(Sxx))
-    plt.ylabel('Frequency [Hz]')
-    plt.xlabel('Time [sec]')
-    plt.colorbar(label='Magnitude [dB]')
-    plt.show()
+from PyQt5.QtWidgets import QApplication, QMessageBox
+
+def show_error_message(message):
+    msg = QMessageBox()
+    msg.setIcon(QMessageBox.Critical)
+    msg.setText(message)
+    msg.setWindowTitle("Error")
+    msg.exec_()
+
+def get_file_extension(file_name):
+    # Use os.path.splitext to split the file name into its root and extension
+    print(file_name)
+    _, extension = os.path.splitext(file_name)
+    # Remove the leading '.' from the extension
+    return extension[1:]
 
 def has_second_channel(audio):
     print(audio.ndim, audio.shape)
@@ -367,30 +373,30 @@ class AudioComponent(QGroupBox):
 
         self.enable_radio_buttons()
 
-    def update_stransform_plot(self):
-        self.disable_radio_buttons()
-        self.set_loading_screen_in_plot()
+    # def update_stransform_plot(self):
+    #     self.disable_radio_buttons()
+    #     self.set_loading_screen_in_plot()
 
-        _, _, s2 = my_st_editted_for_fricatives_28(self.resampled_data, self.resampled_fs)
+    #     _, _, s2 = my_st_editted_for_fricatives_28(self.resampled_data, self.resampled_fs)
 
-        ST = s2
+    #     ST = s2
 
-        freq_bins = ST.shape[0]
-        fsn = self.resampled_fs / 2
-        f1 = np.linspace(0, fsn, freq_bins)
-        time_bins = ST.shape[1]
-        ts = np.linspace(0, len(self.resampled_data), time_bins) / self.resampled_fs
+    #     freq_bins = ST.shape[0]
+    #     fsn = self.resampled_fs / 2
+    #     f1 = np.linspace(0, fsn, freq_bins)
+    #     time_bins = ST.shape[1]
+    #     ts = np.linspace(0, len(self.resampled_data), time_bins) / self.resampled_fs
 
-        # Create a meshgrid for plotting
-        T, F = np.meshgrid(ts, f1)
+    #     # Create a meshgrid for plotting
+    #     T, F = np.meshgrid(ts, f1)
 
-        self.ax_other.pcolormesh(T, F, np.abs(ST), shading='auto')
-        self.ax_other.set_xlabel('Time')
-        self.ax_other.set_ylabel('Frequency')
+    #     self.ax_other.pcolormesh(T, F, np.abs(ST), shading='auto')
+    #     self.ax_other.set_xlabel('Time')
+    #     self.ax_other.set_ylabel('Frequency')
 
-        self.canvas_other.draw()
+    #     self.canvas_other.draw()
 
-        self.enable_radio_buttons()
+    #     self.enable_radio_buttons()
 
     def update_pitch_contour_plot(self):
         self.disable_radio_buttons()
@@ -593,8 +599,11 @@ class MyMainWindow(QMainWindow):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self, "Load Single File", "", "All Files (*);;Text Files (*.txt)", options=options)
         if fileName:
+            if(get_file_extension(fileName) not in ['wav']):
+                show_error_message('File Format unsupported')
+                return
+
             if self.file_path == None:
-                # print(f"Selected file: {fileName}")
                 self._log_action(f"Selected file: {fileName}")
                 self.file_path = fileName
                 self.file_base_name = os.path.basename(fileName)
@@ -608,12 +617,19 @@ class MyMainWindow(QMainWindow):
                 if has_second_channel(data) == True:
                     second_data = data[:, 1]
                     self.left_component.set_second_channel_data(second_data, samplerate)
+            else:
+                show_error_message('Already viewing one file, open another window')
+                return
 
     def compareFiles(self):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self, "Load Single File", "", "All Files (*);;Text Files (*.txt)", options=options)
         
         if fileName:
+            if(get_file_extension(fileName) not in ['wav']):
+                show_error_message('File Format unsupported')
+                return
+
             if self.file_path_2 == None:
                 self._log_action(f"Selected file: {fileName}")
                 self.file_path_2 = fileName
@@ -629,6 +645,9 @@ class MyMainWindow(QMainWindow):
                     self.right_component.set_second_channel_data(second_data, samplerate)
 
                 self.splitter.addWidget(self.right_component)
+            else:
+                show_error_message('Already viewing one file, open another window')
+                return
 
     def refresh_left_area(self):
         self.left_component.setTitle(self.file_base_name)
