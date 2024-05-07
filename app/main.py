@@ -145,9 +145,9 @@ class AudioComponent(QGroupBox):
         self.radioButton7 = QRadioButton('VAD')
         self.radioButton7.clicked.connect(self.update_in_background(self.update_vad_plot))
         self.radioButton7.setDisabled(True)
-        self.radioButton8 = QRadioButton('S-Transform')
-        self.radioButton8.clicked.connect(self.update_in_background(self.update_stransform_plot))
-        self.radioButton8.setDisabled(True)
+        # self.radioButton8 = QRadioButton('S-Transform')
+        # self.radioButton8.clicked.connect(self.update_in_background(self.update_stransform_plot))
+        # self.radioButton8.setDisabled(True)
         self.radioButton9 = QRadioButton('Pitch Contours')
         self.radioButton9.clicked.connect(self.update_in_background(self.update_pitch_contour_plot))
         self.radioButton9.setDisabled(True)
@@ -165,7 +165,7 @@ class AudioComponent(QGroupBox):
         self.radioButtonLayout.addWidget(self.radioButton5)
         self.radioButtonLayout.addWidget(self.radioButton6)
         self.radioButtonLayout.addWidget(self.radioButton7)
-        self.radioButtonLayout.addWidget(self.radioButton8)
+        # self.radioButtonLayout.addWidget(self.radioButton8)
         self.radioButtonLayout.addWidget(self.radioButton9)
         self.radioButtonLayout.addWidget(self.radioButton10)
         self.radioButtonLayout.addWidget(self.radioButton11)
@@ -179,7 +179,7 @@ class AudioComponent(QGroupBox):
         self.radioButton5.setDisabled(True)
         self.radioButton6.setDisabled(True)
         self.radioButton7.setDisabled(True)
-        self.radioButton8.setDisabled(True)
+        # self.radioButton8.setDisabled(True)
         self.radioButton9.setDisabled(True)
         self.radioButton10.setDisabled(True)
         self.radioButton11.setDisabled(True)
@@ -192,7 +192,7 @@ class AudioComponent(QGroupBox):
         self.radioButton5.setDisabled(False)
         self.radioButton6.setDisabled(False)
         self.radioButton7.setDisabled(False)
-        self.radioButton8.setDisabled(False)
+        # self.radioButton8.setDisabled(False)
         self.radioButton9.setDisabled(False)
         self.radioButton10.setDisabled(False)
         self.radioButton11.setDisabled(False)
@@ -311,8 +311,7 @@ class AudioComponent(QGroupBox):
         F0s, VUVDecisions, _, _ = pitch_srh(self.data, self.fs, f0min, f0max, hopsize)
         F0s = F0s * VUVDecisions
         
-        s1 = spectrogram(self.data, self.fs, nperseg=80, noverlap=48, nfft=512, mode='magnitude')
-        print(len(s1))
+        _, _, s1 = spectrogram(self.data, self.fs, nperseg=160, noverlap=80, nfft=512)
         formantPeaks, t_analysis = formant_CGDZP(self.data, self.fs)
         F1 = formantPeaks[:len(F0s), 0] * VUVDecisions
         F2 = formantPeaks[:len(F0s), 1] * VUVDecisions
@@ -322,15 +321,25 @@ class AudioComponent(QGroupBox):
         F2[F2 < np.mean(F2) / 10] = np.nan
         F3[F3 < np.mean(F3) / 10] = np.nan
         
-        freq_bins_sp1 = len(s1[0])
+        freq_bins_sp1 = s1.shape[0]
         fsn = self.fs / 2
-        fs_sp1 = np.linspace(1, freq_bins_sp1, freq_bins_sp1) * fsn / freq_bins_sp1
-        time_bins_sp1 = len(s1[1])
-        ts_sp1 = np.linspace(0, len(self.data) - 1, time_bins_sp1) / self.fs
-
+        fs_sp1 = np.arange(1, freq_bins_sp1 + 1) * fsn / freq_bins_sp1
+        time_bins_sp1 = s1.shape[1]
+        ts_sp1 = np.arange(0, time_bins_sp1) * len(self.data) / (time_bins_sp1 - 1)
+        ts_sp1 = ts_sp1 / self.fs
         T_sp1, F_sp1 = np.meshgrid(ts_sp1, fs_sp1)
+
         
-        self.ax_other.pcolormesh(T_sp1, F_sp1, 10 * np.log10(s1[2]), shading='auto')
+        print(T_sp1.shape, F_sp1.shape, ts_sp1.shape, fs_sp1.shape, s1.shape)
+        self.ax_other.pcolormesh(T_sp1, F_sp1, np.abs(s1), cmap='gray')
+
+        tf0 = np.arange(len(F0s)) * 0.01
+        self.ax_other.plot(tf0, F0s, 'r*', markersize=3)
+
+        self.ax_other.plot(t_analysis[:len(VUVDecisions)], F1, 'yx', linewidth=3, markersize=6)
+        self.ax_other.plot(t_analysis[:len(VUVDecisions)], F2, 'rx', linewidth=3, markersize=6)
+        self.ax_other.plot(t_analysis[:len(VUVDecisions)], F3, 'gx', linewidth=3, markersize=6)
+
         self.ax_other.set_xlabel('Time')
         self.ax_other.set_ylabel('Frequency')        
         self.canvas_other.draw()
